@@ -36,6 +36,24 @@ export default {
         timerBar.appendChild(this.timerText);
         gameContainer.appendChild(timerBar);
 
+        const helpSection = document.createElement('div');
+        helpSection.className = 'level3-help-section';
+
+        const helpText = document.createElement('span');
+        helpText.className = 'level3-help-text';
+        helpText.textContent = 'Il ressemble à ça :';
+
+        const helpImg = document.createElement('img');
+        helpImg.className = 'level3-help-img';
+        helpImg.src = 'asset/ferdinand.png';
+        helpImg.alt = 'Ferdinand';
+        helpImg.draggable = false;
+
+        helpSection.appendChild(helpText);
+        helpSection.appendChild(helpImg);
+        gameContainer.appendChild(helpSection);
+        this.helpSection = helpSection;
+
         const imageWrapper = document.createElement('div');
         imageWrapper.className = 'level3-image-wrapper';
 
@@ -381,6 +399,9 @@ export default {
         this.stopTimer();
         if (this.cleanupMouse) {
             this.cleanupMouse();
+        }
+        if (this.helpSection) {
+            this.helpSection.remove();
         }
         this.engineAPI = null;
         this.ferdinandRect = null;

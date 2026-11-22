@@ -721,6 +721,32 @@ body {
     text-align: center;
 }
 
+.level3-help-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #e8eaed;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #5f6368;
+}
+
+.level3-help-section .level3-help-text {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.level3-help-section .level3-help-img {
+    width: 50px;
+    height: auto;
+    flex-shrink: 0;
+    image-rendering: auto;
+}
+
 .level3-error-msg {
     color: #d93025;
     text-align: center;
