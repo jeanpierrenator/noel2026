@@ -14,6 +14,13 @@ export default {
         this.isResetting = false;
         this.mouseX = 0;
         this.mouseY = 0;
+        this.imageLoaded = false;
+        this.imageNaturalWidth = 0;
+        this.imageNaturalHeight = 0;
+        this.containerWidth = 0;
+        this.containerHeight = 0;
+        this.edgeZone = 60;
+        this.panSpeed = 8;
 
         const gameContainer = document.createElement('div');
         gameContainer.className = 'level3-game-container';
@@ -32,11 +39,16 @@ export default {
         const imageWrapper = document.createElement('div');
         imageWrapper.className = 'level3-image-wrapper';
 
+        const transformContainer = document.createElement('div');
+        transformContainer.className = 'level3-transform-container';
+        this.transformContainer = transformContainer;
+
         const waldoImage = document.createElement('img');
         waldoImage.className = 'level3-waldo-bg';
         waldoImage.src = 'asset/where_is_waldo.jpg';
         waldoImage.alt = 'Où est Charlie ?';
         waldoImage.draggable = false;
+        this.waldoImage = waldoImage;
 
         const ferdinandImg = document.createElement('img');
         ferdinandImg.className = 'level3-ferdinand';
@@ -44,22 +56,34 @@ export default {
         ferdinandImg.draggable = false;
         this.ferdinandImg = ferdinandImg;
 
+        transformContainer.appendChild(waldoImage);
+        transformContainer.appendChild(ferdinandImg);
+        imageWrapper.appendChild(transformContainer);
+
         const scopeCursor = document.createElement('div');
         scopeCursor.className = 'level3-scope-cursor';
         this.scopeCursor = scopeCursor;
-
-        imageWrapper.appendChild(waldoImage);
-        imageWrapper.appendChild(ferdinandImg);
         imageWrapper.appendChild(scopeCursor);
+
         gameContainer.appendChild(imageWrapper);
         container.appendChild(gameContainer);
 
         waldoImage.addEventListener('dragstart', (e) => e.preventDefault());
         ferdinandImg.addEventListener('dragstart', (e) => e.preventDefault());
 
-        waldoImage.onload = () => {
+        const initGame = () => {
+            this.imageLoaded = true;
+            this.imageNaturalWidth = waldoImage.naturalWidth;
+            this.imageNaturalHeight = waldoImage.naturalHeight;
+            this.updateContainerSize(imageWrapper);
             this.positionFerdinand();
         };
+
+        if (waldoImage.complete && waldoImage.src) {
+            initGame();
+        } else {
+            waldoImage.addEventListener('load', initGame);
+        }
 
         waldoImage.onerror = () => {
             ferdinandImg.style.display = 'none';
@@ -73,22 +97,51 @@ export default {
         this.setupMouseTracking(imageWrapper);
         this.setupZoom(imageWrapper);
         this.setupClick(imageWrapper, waldoImage, ferdinandImg);
+        this.setupEdgePan(imageWrapper);
         this.startTimer();
     },
 
+    updateContainerSize(wrapper) {
+        const rect = wrapper.getBoundingClientRect();
+        this.containerWidth = rect.width;
+        this.containerHeight = rect.height;
+
+        if (!this.imageLoaded || !this.waldoImage) return;
+
+        const imgAspect = this.imageNaturalWidth / this.imageNaturalHeight;
+        const wrapperAspect = this.containerWidth / this.containerHeight;
+
+        let displayWidth, displayHeight;
+
+        if (imgAspect > wrapperAspect) {
+            displayHeight = this.containerHeight;
+            displayWidth = this.containerHeight * imgAspect;
+        } else {
+            displayWidth = this.containerWidth;
+            displayHeight = this.containerWidth / imgAspect;
+        }
+
+        this.waldoImage.style.width = `${displayWidth}px`;
+        this.waldoImage.style.height = `${displayHeight}px`;
+
+        if (this.ferdinandImg) {
+            this.ferdinandImg.style.width = '';
+            this.ferdinandImg.style.height = '';
+        }
+    },
+
     positionFerdinand() {
-        if (!this.ferdinandImg) return;
+        if (!this.ferdinandImg || !this.imageLoaded) return;
 
-        const wrapper = this.ferdinandImg.parentElement;
-        if (!wrapper) return;
+        const transformContainer = this.transformContainer;
+        if (!transformContainer) return;
 
-        const wrapperRect = wrapper.getBoundingClientRect();
-        const containerWidth = wrapperRect.width;
-        const containerHeight = wrapperRect.height;
+        const containerRect = transformContainer.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
 
-        const imgScale = Math.min(120 / containerHeight, 120 / containerWidth);
-        const ferdWidth = 160 * imgScale;
-        const ferdHeight = 200 * imgScale;
+        const ferdWidth = 20;
+        const ferdHeight = 25;
 
         const margin = 40;
         const maxX = containerWidth - ferdWidth - margin;
@@ -104,10 +157,10 @@ export default {
         this.ferdinandImg.style.display = 'block';
 
         this.ferdinandRect = {
-            left: randomX,
-            right: randomX + ferdWidth,
-            top: randomY,
-            bottom: randomY + ferdHeight
+            x: randomX,
+            y: randomY,
+            width: ferdWidth,
+            height: ferdHeight
         };
     },
 
@@ -135,35 +188,91 @@ export default {
     setupZoom(wrapper) {
         wrapper.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const delta = -e.deltaY * 0.001;
-            this.scale = Math.max(1, Math.min(5, this.scale + delta));
+            const delta = -e.deltaY * 0.005;
+            const oldScale = this.scale;
+            let newScale = oldScale + delta;
+            newScale = Math.max(1, Math.min(5, newScale));
+
+            if (newScale === oldScale) return;
+
+            const mx = this.mouseX;
+            const my = this.mouseY;
+
+            const imgX = (mx - this.panX) / oldScale;
+            const imgY = (my - this.panY) / oldScale;
+
+            this.scale = newScale;
+            this.panX = mx - imgX * newScale;
+            this.panY = my - imgY * newScale;
+
             this.updateTransform();
         }, { passive: false });
 
         document.addEventListener('keydown', (e) => {
+            const oldScale = this.scale;
+            const cx = this.containerWidth / 2;
+            const cy = this.containerHeight / 2;
+
             if (e.key === '+' || e.key === '=') {
-                this.scale = Math.min(5, this.scale + 0.3);
-                this.updateTransform();
+                this.scale = Math.min(5, oldScale + 0.3);
             } else if (e.key === '-') {
-                this.scale = Math.max(1, this.scale - 0.3);
-                this.updateTransform();
+                this.scale = Math.max(1, oldScale - 0.3);
+            } else {
+                return;
             }
+
+            const imgX = (cx - this.panX) / oldScale;
+            const imgY = (cy - this.panY) / oldScale;
+            this.panX = cx - imgX * this.scale;
+            this.panY = cy - imgY * this.scale;
+
+            this.updateTransform();
         });
     },
 
+    setupEdgePan(wrapper) {
+        const handleTick = () => {
+            if (!this.transformContainer || this.containerWidth === 0) {
+                requestAnimationFrame(handleTick);
+                return;
+            }
+
+            const containerWidth = this.containerWidth;
+            const containerHeight = this.containerHeight;
+
+            let dx = 0;
+            let dy = 0;
+
+            if (this.scale > 1.2) {
+                if (this.mouseX < this.edgeZone) {
+                    dx = this.panSpeed * (1 - this.mouseX / this.edgeZone);
+                } else if (this.mouseX > containerWidth - this.edgeZone) {
+                    dx = -this.panSpeed * (1 - (containerWidth - this.mouseX) / this.edgeZone);
+                }
+
+                if (this.mouseY < this.edgeZone) {
+                    dy = this.panSpeed * (1 - this.mouseY / this.edgeZone);
+                } else if (this.mouseY > containerHeight - this.edgeZone) {
+                    dy = -this.panSpeed * (1 - (containerHeight - this.mouseY) / this.edgeZone);
+                }
+            }
+
+            if (dx !== 0 || dy !== 0) {
+                this.panX += dx;
+                this.panY += dy;
+                this.updateTransform();
+            }
+
+            requestAnimationFrame(handleTick);
+        };
+
+        requestAnimationFrame(handleTick);
+    },
+
     updateTransform() {
-        const wrapper = this.scopeCursor.parentElement;
-        if (!wrapper) return;
+        if (!this.transformContainer) return;
 
-        const bg = wrapper.querySelector('.level3-waldo-bg');
-        const ferd = wrapper.querySelector('.level3-ferdinand');
-
-        if (bg) {
-            bg.style.transform = `scale(${this.scale}) translate(${this.panX}px, ${this.panY}px)`;
-        }
-        if (ferd) {
-            ferd.style.transform = `scale(${this.scale})`;
-        }
+        this.transformContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
     },
 
     setupClick(wrapper, waldoImg, ferdinandImg) {
@@ -174,14 +283,15 @@ export default {
             const clickX = e.clientX - wrapperRect.left;
             const clickY = e.clientY - wrapperRect.top;
 
-            const adjustedX = (clickX - wrapperRect.width / 2) / this.scale + wrapperRect.width / 2;
-            const adjustedY = (clickY - wrapperRect.height / 2) / this.scale + wrapperRect.height / 2;
+            const imgX = (clickX - this.panX) / this.scale;
+            const imgY = (clickY - this.panY) / this.scale;
 
+            const ferd = this.ferdinandRect;
             if (
-                adjustedX >= this.ferdinandRect.left &&
-                adjustedX <= this.ferdinandRect.right &&
-                adjustedY >= this.ferdinandRect.top &&
-                adjustedY <= this.ferdinandRect.bottom
+                imgX >= ferd.x &&
+                imgX <= ferd.x + ferd.width &&
+                imgY >= ferd.y &&
+                imgY <= ferd.y + ferd.height
             ) {
                 this.stopTimer();
                 e.preventDefault();
