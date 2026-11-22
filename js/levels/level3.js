@@ -273,6 +273,14 @@ export default {
         if (!this.transformContainer) return;
 
         this.transformContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+
+        const zoomBlur = Math.max(0, (this.scale - 1.5) * 0.15);
+        if (this.waldoImage) {
+            this.waldoImage.style.filter = zoomBlur > 0 ? `blur(${zoomBlur}px)` : 'none';
+        }
+        if (this.ferdinandImg) {
+            this.ferdinandImg.style.filter = zoomBlur > 0 ? `blur(${zoomBlur}px)` : 'none';
+        }
     },
 
     setupClick(wrapper, waldoImg, ferdinandImg) {
