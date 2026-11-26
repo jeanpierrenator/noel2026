@@ -2,10 +2,11 @@ import level0 from './levels/level0.js';
 import level1 from './levels/level1.js';
 import level2 from './levels/level2.js';
 import level3 from './levels/level3.js';
+import level5 from './levels/level5.js';
 
 console.log('Module loaded');
 
-const LEVELS = [level0, level1, level2, level3];
+const LEVELS = [level0, level1, level2, level3, level5];
 
 class CaptchaEngine {
     constructor() {
@@ -126,6 +127,8 @@ class CaptchaEngine {
         this.currentLevelIndex = index;
         this.isTransitioning = false;
         this.verifyBtnEnabled = false;
+        this.verifyBtn.disabled = true;
+        this.verifyBtn.classList.remove('success-state');
         this.updateProgressBar();
 
         const level = LEVELS[index];
