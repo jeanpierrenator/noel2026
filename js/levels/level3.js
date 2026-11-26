@@ -291,7 +291,7 @@ export default {
         if (!this.ferdinandImg || !this.imageLoaded) return;
 
         // Taille proportionnelle à l'image native (reste nette en zoomant)
-        const ferdWidth = Math.round(Math.max(24, this.imageNaturalWidth * 0.045));
+        const ferdWidth = Math.round(Math.max(24, this.imageNaturalWidth * 0.035));
         const ferdHeight = Math.round(ferdWidth * 1.25);
 
         const marginX = Math.round(this.imageNaturalWidth * 0.06);

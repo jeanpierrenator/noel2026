@@ -6,7 +6,7 @@ import level4 from './levels/level4.js';
 import level5 from './levels/level5.js';
 
 
-const PHASE_1_LEVELS = [level0, level2, level1, level4];
+const PHASE_1_LEVELS = [level3,level0, level2, level1, level4];
 
 
 const PHASE_2_LEVELS = [level3, level5];
