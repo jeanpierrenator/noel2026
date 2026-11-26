@@ -4,6 +4,7 @@ export default {
     subtitle: 'Le lutin fatigué a trop travaillé pour Noêl et dort partout.',
 
     mount(container, engineAPI) {
+        console.log('level1 mount called');
         this.engineAPI = engineAPI;
         this.selectedCells = new Set();
         this.correctCells = new Set();
@@ -59,8 +60,10 @@ export default {
     },
 
     verify(engineAPI) {
+        console.log('level1 verify called', { selectedCells: Array.from(this.selectedCells), correctCells: Array.from(this.correctCells), size: this.selectedCells.size });
         const isExact = Array.from(this.selectedCells).every(idx => this.correctCells.has(idx)) &&
                         this.selectedCells.size === this.correctCells.size;
+        console.log('isExact:', isExact);
         if (isExact) {
             engineAPI.pass();
         } else {

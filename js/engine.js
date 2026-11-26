@@ -1,11 +1,15 @@
+import level0 from './levels/level0.js';
 import level1 from './levels/level1.js';
 import level2 from './levels/level2.js';
 import level3 from './levels/level3.js';
 
-const LEVELS = [level1, level2, level3];
+console.log('Module loaded');
+
+const LEVELS = [level0, level1, level2, level3];
 
 class CaptchaEngine {
     constructor() {
+        console.log('Constructor called');
         this.currentLevelIndex = 0;
         this.currentLevel = null;
         this.verifyBtnEnabled = false;
@@ -20,13 +24,15 @@ class CaptchaEngine {
         this.verifyBtn = document.getElementById('verifyBtn');
         this.finalScreen = document.getElementById('finalScreen');
 
+        console.log('Elements:', this.content, this.verifyBtn);
         this.verifyBtn.addEventListener('click', () => this.handleVerify());
 
         this.init();
     }
 
     init() {
-        this.loadLevel(0);
+        console.log('Init called');
+        this.showLevel(0);
     }
 
     loadLevel(index) {
@@ -81,10 +87,14 @@ class CaptchaEngine {
     }
 
     handleVerify() {
-        if (!this.verifyBtnEnabled || this.isTransitioning) return;
+        console.log('handleVerify called', { verifyBtnEnabled: this.verifyBtnEnabled, isTransitioning: this.isTransitioning });
+        if (this.isTransitioning) return;
 
         if (this.currentLevel?.verify) {
+            console.log('Calling level verify');
             this.currentLevel.verify(this.getEngineAPI());
+        } else {
+            console.log('No verify function available');
         }
     }
 
@@ -103,8 +113,38 @@ class CaptchaEngine {
 
         setTimeout(() => {
             this.card.classList.remove('success');
-            this.loadLevel(this.currentLevelIndex + 1);
+            this.showLevel(this.currentLevelIndex + 1);
         }, 1200);
+    }
+
+    showLevel(index) {
+        if (index >= LEVELS.length) {
+            this.showFinalScreen();
+            return;
+        }
+
+        this.currentLevelIndex = index;
+        this.isTransitioning = false;
+        this.verifyBtnEnabled = false;
+        this.updateProgressBar();
+
+        const level = LEVELS[index];
+        this.title.textContent = level.title;
+
+        if (level.subtitle) {
+            this.subtitle.textContent = level.subtitle;
+            this.subtitle.style.display = 'block';
+        } else {
+            this.subtitle.style.display = 'none';
+        }
+
+        if (this.currentLevel) {
+            this.currentLevel.unmount?.();
+        }
+
+        this.currentLevel = level;
+        this.content.innerHTML = '';
+        level.mount(this.content, this.getEngineAPI());
     }
 
     handleFail(message) {
@@ -184,6 +224,5 @@ class CaptchaEngine {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    new CaptchaEngine();
-});
+// ES modules are deferred, so DOM is ready when this executes
+new CaptchaEngine();

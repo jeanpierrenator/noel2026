@@ -30,8 +30,8 @@ Site web capcha noel/
 ```bash
 # Option 1: Python
 cd "C:\dvl\Site web capcha noel"
-python -m http.server 8080
-# Visit: http://localhost:8080
+python -m http.server 8085
+# Visit: http://localhost:8085
 
 # Option 2: Node.js npx
 npx serve "C:\dvl\Site web capcha noel"

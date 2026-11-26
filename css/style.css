@@ -72,6 +72,10 @@ body {
     min-height: 100px;
 }
 
+#captchaContent {
+    min-height: 100px;
+}
+
 .captcha-footer {
     padding: 0 24px 20px;
 }
@@ -140,6 +144,21 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.inspiration-link {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    font-family: 'Roboto', 'Arial', sans-serif;
+    transition: color 0.2s ease;
+}
+
+.inspiration-link:hover {
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .captcha-recaptcha-branding span {
@@ -211,6 +230,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
     transition: border-color 0.2s ease;
+    background: #fff;
 }
 
 .captcha-checkbox-container:hover {
