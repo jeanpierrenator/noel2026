@@ -215,8 +215,8 @@ export default {
             this.imageNaturalWidth = waldoImage.naturalWidth;
             this.imageNaturalHeight = waldoImage.naturalHeight;
             this.updateContainerSize(imageWrapper);
-            this.positionFerdinand();
             this.resetCamera();
+            this.positionFerdinand();
         };
 
         if (waldoImage.complete && waldoImage.naturalWidth > 0) {
@@ -287,21 +287,30 @@ export default {
         this.panY = Math.max(minY, Math.min(0, this.panY));
     },
 
-    positionFerdinand() {
+positionFerdinand() {
         if (!this.ferdinandImg || !this.imageLoaded) return;
 
-        // Taille proportionnelle à l'image native (reste nette en zoomant)
         const ferdWidth = Math.round(Math.max(24, this.imageNaturalWidth * 0.035));
         const ferdHeight = Math.round(ferdWidth * 1.25);
 
-        const marginX = Math.round(this.imageNaturalWidth * 0.06);
-        const marginY = Math.round(this.imageNaturalHeight * 0.06);
+        // Compute the currently visible area in native image coordinates
+        const actualScale = this.getActualScale();
+        const visibleLeft = -this.panX / actualScale;
+        const visibleTop = -this.panY / actualScale;
+        const visibleRight = (this.containerWidth - this.panX) / actualScale;
+        const visibleBottom = (this.containerHeight - this.panY) / actualScale;
 
-        const maxX = Math.max(1, this.imageNaturalWidth - ferdWidth - marginX * 2);
-        const maxY = Math.max(1, this.imageNaturalHeight - ferdHeight - marginY * 2);
+        // Keep a 16px screen margin (and 40px at the bottom to avoid the zoom HUD)
+        const margin = 16 / actualScale;
+        const bottomHudMargin = 40 / actualScale;
 
-        const randomX = Math.round(Math.random() * maxX + marginX);
-        const randomY = Math.round(Math.random() * maxY + marginY);
+        const minX = visibleLeft + margin;
+        const maxX = Math.max(minX, visibleRight - ferdWidth - margin);
+        const minY = visibleTop + margin;
+        const maxY = Math.max(minY, visibleBottom - ferdHeight - bottomHudMargin);
+
+        const randomX = Math.round(minX + Math.random() * (maxX - minX));
+        const randomY = Math.round(minY + Math.random() * (maxY - minY));
 
         this.ferdinandImg.style.width = `${ferdWidth}px`;
         this.ferdinandImg.style.height = `${ferdHeight}px`;
@@ -500,8 +509,8 @@ export default {
 
         this.resetTimeout = setTimeout(() => {
             if (!this.engineAPI) return;
-            this.positionFerdinand();
             this.resetCamera();
+            this.positionFerdinand();
             this.isResetting = false;
             this.startTimer();
         }, 1500);
