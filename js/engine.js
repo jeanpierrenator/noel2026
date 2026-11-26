@@ -2,15 +2,17 @@ import level0 from './levels/level0.js';
 import level1 from './levels/level1.js';
 import level2 from './levels/level2.js';
 import level3 from './levels/level3.js';
+import level4 from './levels/level4.js';
 import level5 from './levels/level5.js';
 
-console.log('Module loaded');
+const PHASE_1_LEVELS = [level0, level1, level2, level4];
 
-const LEVELS = [level0, level1, level2, level3, level5];
+
+const PHASE_2_LEVELS = [level3, level5];
 
 class CaptchaEngine {
     constructor() {
-        console.log('Constructor called');
+        this.currentPhase = 1;
         this.currentLevelIndex = 0;
         this.currentLevel = null;
         this.verifyBtnEnabled = false;
@@ -25,45 +27,88 @@ class CaptchaEngine {
         this.verifyBtn = document.getElementById('verifyBtn');
         this.finalScreen = document.getElementById('finalScreen');
 
-        console.log('Elements:', this.content, this.verifyBtn);
+        this.injectTransitionStyles();
         this.verifyBtn.addEventListener('click', () => this.handleVerify());
 
         this.init();
     }
 
     init() {
-        console.log('Init called');
         this.showLevel(0);
     }
 
-    loadLevel(index) {
-        if (index >= LEVELS.length) {
-            this.showFinalScreen();
-            return;
-        }
+    getActiveLevels() {
+        return this.currentPhase === 1 ? PHASE_1_LEVELS : PHASE_2_LEVELS;
+    }
 
-        this.currentLevelIndex = index;
-        this.isTransitioning = false;
-        this.verifyBtnEnabled = false;
-        this.updateProgressBar();
-
-        const level = LEVELS[index];
-        this.title.textContent = level.title;
-
-        if (level.subtitle) {
-            this.subtitle.textContent = level.subtitle;
-            this.subtitle.style.display = 'block';
-        } else {
-            this.subtitle.style.display = 'none';
-        }
-
-        if (this.currentLevel) {
-            this.currentLevel.unmount?.();
-        }
-
-        this.currentLevel = level;
-        this.content.innerHTML = '';
-        level.mount(this.content, this.getEngineAPI());
+    injectTransitionStyles() {
+        if (document.getElementById('engine-transition-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'engine-transition-styles';
+        style.textContent = `
+            .phase-transition-box {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 24px 12px;
+                gap: 14px;
+            }
+            .phase-loader-bar {
+                width: 100%;
+                height: 12px;
+                background: #e0e0e0;
+                border-radius: 6px;
+                overflow: hidden;
+            }
+            .phase-loader-fill {
+                width: 0%;
+                height: 100%;
+                background: #1a73e8;
+                transition: width 0.45s ease, background-color 0.3s ease;
+            }
+            .phase-loader-fill.phase-suspicious {
+                background: #d93025;
+            }
+            .phase-loader-status {
+                font-size: 13px;
+                color: #555;
+                min-height: 20px;
+            }
+            .phase-twist-icon {
+                font-size: 42px;
+                line-height: 1;
+            }
+            .phase-twist-title {
+                font-size: 16px;
+                font-weight: 700;
+                color: #d93025;
+                margin: 0;
+            }
+            .phase-twist-text {
+                font-size: 14px;
+                color: #333;
+                line-height: 1.5;
+                margin: 0;
+            }
+            .phase-continue-btn {
+                margin-top: 6px;
+                padding: 10px 20px;
+                background: #1a73e8;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.15s;
+            }
+            .phase-continue-btn:hover {
+                background: #1557b0;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     getEngineAPI() {
@@ -82,20 +127,16 @@ class CaptchaEngine {
                 }
             },
             getCurrentLevelIndex: () => this.currentLevelIndex,
-            getTotalLevels: () => LEVELS.length,
-            getProgress: () => ((this.currentLevelIndex) / LEVELS.length) * 100
+            getTotalLevels: () => this.getActiveLevels().length,
+            getProgress: () => (this.currentLevelIndex / this.getActiveLevels().length) * 100
         };
     }
 
     handleVerify() {
-        console.log('handleVerify called', { verifyBtnEnabled: this.verifyBtnEnabled, isTransitioning: this.isTransitioning });
         if (this.isTransitioning) return;
 
         if (this.currentLevel?.verify) {
-            console.log('Calling level verify');
             this.currentLevel.verify(this.getEngineAPI());
-        } else {
-            console.log('No verify function available');
         }
     }
 
@@ -106,6 +147,9 @@ class CaptchaEngine {
         this.card.classList.add('success');
         this.verifyBtnEnabled = false;
         this.verifyBtn.disabled = true;
+
+        // Met visuellement la barre à jour (permet d'afficher 4/4 et 100% à la fin de la phase 1)
+        this.updateProgressBar(this.currentLevelIndex + 1);
 
         const successMsg = document.createElement('div');
         successMsg.className = 'success-message';
@@ -119,19 +163,27 @@ class CaptchaEngine {
     }
 
     showLevel(index) {
-        if (index >= LEVELS.length) {
-            this.showFinalScreen();
+        const levels = this.getActiveLevels();
+
+        if (index >= levels.length) {
+            if (this.currentPhase === 1 && PHASE_2_LEVELS.length > 0) {
+                this.showPhaseTransition();
+            } else {
+                this.showFinalScreen();
+            }
             return;
         }
 
         this.currentLevelIndex = index;
         this.isTransitioning = false;
         this.verifyBtnEnabled = false;
+        this.verifyBtn.style.display = '';
         this.verifyBtn.disabled = true;
         this.verifyBtn.classList.remove('success-state');
-        this.updateProgressBar();
+        this.verifyBtn.textContent = 'VÉRIFIER';
+        this.updateProgressBar(this.currentLevelIndex);
 
-        const level = LEVELS[index];
+        const level = levels[index];
         this.title.textContent = level.title;
 
         if (level.subtitle) {
@@ -148,6 +200,77 @@ class CaptchaEngine {
         this.currentLevel = level;
         this.content.innerHTML = '';
         level.mount(this.content, this.getEngineAPI());
+    }
+
+    showPhaseTransition() {
+        if (this.currentLevel) {
+            this.currentLevel.unmount?.();
+            this.currentLevel = null;
+        }
+
+        this.isTransitioning = true;
+        this.verifyBtn.style.display = 'none';
+        this.title.textContent = 'Finalisation de la vérification...';
+        this.subtitle.style.display = 'none';
+        this.content.innerHTML = '';
+
+        const box = document.createElement('div');
+        box.className = 'phase-transition-box';
+
+        const bar = document.createElement('div');
+        bar.className = 'phase-loader-bar';
+        const fill = document.createElement('div');
+        fill.className = 'phase-loader-fill';
+        bar.appendChild(fill);
+
+        const status = document.createElement('div');
+        status.className = 'phase-loader-status';
+        status.textContent = 'Analyse de vos réponses...';
+
+        box.appendChild(bar);
+        box.appendChild(status);
+        this.content.appendChild(box);
+
+        // Étapes de la fausse barre de chargement
+        const steps = [
+            { delay: 200, width: '28%', text: 'Analyse de vos mouvements de souris...' },
+            { delay: 1100, width: '64%', text: 'Calcul de votre probabilité d\'être un robot...' },
+            { delay: 2100, width: '92%', text: 'Déverrouillage de l\'énigme de Noël...' },
+            { delay: 3000, width: '98%', text: 'Presque terminé...' }
+        ];
+
+        steps.forEach(step => {
+            setTimeout(() => {
+                fill.style.width = step.width;
+                status.textContent = step.text;
+            }, step.delay);
+        });
+
+        // Révélation du twist après une petite pause à 98%
+        setTimeout(() => {
+            fill.classList.add('phase-suspicious');
+            this.card.classList.add('shake');
+            setTimeout(() => this.card.classList.remove('shake'), 500);
+
+            this.title.textContent = 'Vérification supplémentaire requise';
+            box.innerHTML = `
+                <div class="phase-twist-icon">🤨</div>
+                <p class="phase-twist-title">Attendez une seconde...</p>
+                <p class="phase-twist-text">
+                    Je ne suis pas encore sûr que vous êtes bien humain.<br>
+                    J'ai préparé des tests que seuls des humains pourraient réussir.
+                </p>
+                <button type="button" class="phase-continue-btn" id="phase2StartBtn">
+                    Prouver mon humanité
+                </button>
+            `;
+
+            const startBtn = document.getElementById('phase2StartBtn');
+            startBtn.addEventListener('click', () => {
+                this.currentPhase = 2;
+                this.showLevel(0);
+            });
+        }, 4300);
     }
 
     handleFail(message) {
@@ -173,13 +296,19 @@ class CaptchaEngine {
         }, 4000);
     }
 
-    updateProgressBar() {
-        const progress = ((this.currentLevelIndex) / LEVELS.length) * 100;
+    updateProgressBar(completedCount = this.currentLevelIndex) {
+        const total = this.getActiveLevels().length;
+        const progress = (completedCount / total) * 100;
         this.progressFill.style.width = `${progress}%`;
-        this.progressText.textContent = `${this.currentLevelIndex} / ${LEVELS.length}`;
+        this.progressText.textContent = `${completedCount} / ${total}`;
     }
 
     showFinalScreen() {
+        if (this.currentLevel) {
+            this.currentLevel.unmount?.();
+            this.currentLevel = null;
+        }
+
         this.card.style.display = 'none';
         this.finalScreen.classList.add('visible');
         this.launchConfetti();
