@@ -5,12 +5,27 @@ import level3 from './levels/level3.js';
 import level4 from './levels/level4.js';
 import level5 from './levels/level5.js';
 
-const PHASE_1_LEVELS = [level0, level1, level2, level4];
+
+const PHASE_1_LEVELS = [level0, level2, level1, level4];
 
 
 const PHASE_2_LEVELS = [level3, level5];
 
+
+const ENCRYPTED_RIDDLE = [
+    76, 136, 57, 211, 173, 138, 229, 92, 18, 254, 78, 238, 182, 97, 69, 232,
+    207, 13, 99, 222, 36, 0, 153, 82, 92, 74, 79, 38, 19, 191, 104, 74,
+    162, 229, 243, 88, 145, 73, 48, 239, 6, 146, 229, 120, 241, 111, 93, 169,
+    252, 11, 66, 219, 141, 95, 208, 80, 141, 212, 82, 126, 209, 19, 212, 94,
+    233, 142, 227, 10, 24, 116, 183, 99, 83, 217, 32, 237, 183, 125, 130, 168,
+    247, 91, 79, 126, 87, 74, 99, 59, 147, 80, 229, 133, 49, 96, 107, 32,
+    48, 116, 137, 227, 15, 35, 26, 214, 102, 74, 201, 179, 46, 248, 240, 123,
+    7, 224, 139, 190, 162, 10, 116, 31, 3, 56, 195, 85, 208, 15, 178, 106,
+    214, 120, 194, 99, 41, 102, 112, 175, 82, 92, 164, 197
+];
+
 class CaptchaEngine {
+    #proofs = [];
     constructor() {
         this.currentPhase = 1;
         this.currentLevelIndex = 0;
@@ -143,6 +158,10 @@ class CaptchaEngine {
     handlePass() {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
+
+        if (this.currentLevel?.id && !this.#proofs.includes(this.currentLevel.id)) {
+            this.#proofs.push(this.currentLevel.id);
+        }
 
         this.card.classList.add('success');
         this.verifyBtnEnabled = false;
@@ -303,33 +322,34 @@ class CaptchaEngine {
         this.progressText.textContent = `${completedCount} / ${total}`;
     }
 
+    #decryptRiddle() {
+        const keyBytes = new TextEncoder().encode(this.#proofs.join('|'));
+        if (keyBytes.length === 0) return 'Accès refusé : terminez d\'abord les épreuves !';
+
+        const out = new Uint8Array(ENCRYPTED_RIDDLE.length);
+        let s = 137;
+        for (let i = 0; i < ENCRYPTED_RIDDLE.length; i++) {
+            const k = keyBytes[i % keyBytes.length];
+            s = (s * 31 + k + i) & 0xFF;
+            out[i] = ENCRYPTED_RIDDLE[i] ^ s;
+        }
+        return new TextDecoder().decode(out);
+    }
+
     showFinalScreen() {
         if (this.currentLevel) {
             this.currentLevel.unmount?.();
             this.currentLevel = null;
         }
 
+        const riddleTextEl = document.getElementById('riddleText');
+        if (riddleTextEl) {
+            riddleTextEl.textContent = this.#decryptRiddle();
+        }
+
         this.card.style.display = 'none';
         this.finalScreen.classList.add('visible');
         this.launchConfetti();
-
-        const riddleSubmitBtn = document.getElementById('riddleSubmitBtn');
-        const riddleFeedback = document.getElementById('riddleFeedback');
-
-        if (riddleSubmitBtn && riddleFeedback) {
-            riddleSubmitBtn.addEventListener('click', () => {
-                const answer = riddleFeedback.previousElementSibling.value;
-                if (answer.trim()) {
-                    riddleFeedback.textContent = 'Réponse reçue ! Merry Christmas ! 🎄';
-                    riddleFeedback.style.color = '#2e7d32';
-                    riddleSubmitBtn.disabled = true;
-                    riddleSubmitBtn.textContent = 'Reçu';
-                } else {
-                    riddleFeedback.textContent = 'Veuillez entrer une réponse avant de soumettre.';
-                    riddleFeedback.style.color = '#d93025';
-                }
-            });
-        }
     }
 
     launchConfetti() {

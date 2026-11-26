@@ -16,7 +16,7 @@ export default {
 
         const label = document.createElement('span');
         label.className = 'captcha-checkbox-label';
-        label.textContent = 'Vérifiez que vous êtes un humain - Mirion Captch';
+        label.textContent = 'Vérifiez que vous êtes un humain - Mirion Captcha';
 
         checkboxContainer.appendChild(checkbox);
         checkboxContainer.appendChild(label);
