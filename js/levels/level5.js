@@ -203,7 +203,7 @@ export default {
 
         const tip = document.createElement('div');
         tip.className = 'level5-tip';
-        tip.textContent = 'Astuce : le Mat du Lion en 2 coups existe... 🦁';
+        tip.textContent = '';
 
         wrapper.appendChild(statusBar);
         wrapper.appendChild(boardContainer);

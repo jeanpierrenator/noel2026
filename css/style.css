@@ -19,6 +19,12 @@ body {
     max-width: 450px;
     position: relative;
 }
+.captcha-logo-img {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
 
 .captcha-card {
     background: #fff;

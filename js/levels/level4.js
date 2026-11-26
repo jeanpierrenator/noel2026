@@ -1,7 +1,7 @@
 export default {
     id: 'level4',
     title: 'Cochez toutes les cases qui contiennent le 42ème étage de la tour Montparnasse',
-    subtitle: 'Bonne chance.',
+    subtitle: 'Bonne chance!',
 
     mount(container, engineAPI) {
         this.engineAPI = engineAPI;
@@ -190,13 +190,13 @@ export default {
         const allValidButIncomplete = selected.every(idx => this.correctCells.has(idx));
 
         if (allValidButIncomplete) {
-            engineAPI.fail('Presque ! Il manque encore au moins une case du 42ème étage.');
+            engineAPI.fail('Presque ! il manque des case');
         } else if (hasOffTower) {
-            engineAPI.fail('Vous débordez de la tour ! C\'est le ciel de Paris ça.');
+            engineAPI.fail('Vous débordez de la tour ! ');
         } else if (hasTooHigh) {
-            engineAPI.fail('Trop haut ! Redescendez un peu.');
+            engineAPI.fail('Trop haut ! ');
         } else if (hasTooLow) {
-            engineAPI.fail('Trop bas ! Prenez l\'ascenseur.');
+            engineAPI.fail('Trop bas ! ');
         } else {
             engineAPI.fail('Mauvaise sélection. Réessayez !');
         }

@@ -1,15 +1,30 @@
 export default {
     id: 'level3',
-    title: "Prouvez que vous êtes humain en déclarant la guerre",
-    subtitle: 'Tirez avec votre sniper sur l\'archiduc François-Ferdinand. 30 secondes seulement !',
+    title: "Prouvez que vous êtes humain en déclenchant une guerre mondiale",
+    subtitle: "Tirez avec votre sniper sur l'archiduc François-Ferdinand. 30 secondes seulement !",
 
     mount(container, engineAPI) {
         this.engineAPI = engineAPI;
         this.timer = null;
+        this.resetTimeout = null;
         this.timeLeft = 30;
-        this.scale = 1;
+
+        // État de la caméra (zoomFactor = 1 à 6, actualScale = baseScale * zoomFactor)
+        this.baseScale = 1;
+        this.zoomFactor = 1;
+        this.minZoom = 1;
+        this.maxZoom = 6;
         this.panX = 0;
         this.panY = 0;
+
+        // État du drag (pour différencier un déplacement d'un tir)
+        this.isDragging = false;
+        this.hasDragged = false;
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.panStartX = 0;
+        this.panStartY = 0;
+
         this.ferdinandRect = null;
         this.isResetting = false;
         this.mouseX = 0;
@@ -19,8 +34,81 @@ export default {
         this.imageNaturalHeight = 0;
         this.containerWidth = 0;
         this.containerHeight = 0;
-        this.edgeZone = 60;
-        this.panSpeed = 8;
+
+        // Styles additionnels scopés pour la netteté et le HUD de zoom
+        const style = document.createElement('style');
+        style.textContent = `
+            .level3-image-wrapper {
+                position: relative;
+                overflow: hidden;
+                cursor: none;
+                user-select: none;
+            }
+            .level3-transform-container {
+                position: absolute;
+                top: 0;
+                left: 0;
+                transform-origin: 0 0;
+                will-change: transform;
+            }
+            .level3-waldo-bg {
+                display: block;
+                max-width: none !important;
+                max-height: none !important;
+                image-rendering: auto;
+                pointer-events: none;
+            }
+            .level3-ferdinand {
+                position: absolute;
+                pointer-events: none;
+                display: none;
+            }
+            .level3-zoom-hud {
+                position: absolute;
+                bottom: 8px;
+                right: 8px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                background: rgba(0, 0, 0, 0.65);
+                padding: 3px 6px;
+                border-radius: 4px;
+                z-index: 20;
+                cursor: default;
+            }
+            .level3-zoom-btn {
+                width: 22px;
+                height: 22px;
+                border: none;
+                border-radius: 3px;
+                background: rgba(255, 255, 255, 0.18);
+                color: #fff;
+                font-size: 14px;
+                font-weight: 700;
+                line-height: 1;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .level3-zoom-btn:hover {
+                background: rgba(255, 255, 255, 0.35);
+            }
+            .level3-zoom-label {
+                color: #fff;
+                font-size: 11px;
+                font-weight: 600;
+                min-width: 30px;
+                text-align: center;
+            }
+            .level3-controls-hint {
+                font-size: 11px;
+                color: #666;
+                text-align: center;
+                margin-top: 4px;
+            }
+        `;
+        container.appendChild(style);
 
         const gameContainer = document.createElement('div');
         gameContainer.className = 'level3-game-container';
@@ -56,6 +144,7 @@ export default {
 
         const imageWrapper = document.createElement('div');
         imageWrapper.className = 'level3-image-wrapper';
+        this.imageWrapper = imageWrapper;
 
         const transformContainer = document.createElement('div');
         transformContainer.className = 'level3-transform-container';
@@ -83,7 +172,39 @@ export default {
         this.scopeCursor = scopeCursor;
         imageWrapper.appendChild(scopeCursor);
 
+        // HUD de zoom (+ / -)
+        const zoomHud = document.createElement('div');
+        zoomHud.className = 'level3-zoom-hud';
+        zoomHud.addEventListener('mousedown', (e) => e.stopPropagation());
+        zoomHud.addEventListener('click', (e) => e.stopPropagation());
+
+        const zoomOutBtn = document.createElement('button');
+        zoomOutBtn.type = 'button';
+        zoomOutBtn.className = 'level3-zoom-btn';
+        zoomOutBtn.textContent = '−';
+        zoomOutBtn.addEventListener('click', () => this.zoomAtCenter(1 / 1.35));
+
+        this.zoomLabel = document.createElement('span');
+        this.zoomLabel.className = 'level3-zoom-label';
+        this.zoomLabel.textContent = '1.0×';
+
+        const zoomInBtn = document.createElement('button');
+        zoomInBtn.type = 'button';
+        zoomInBtn.className = 'level3-zoom-btn';
+        zoomInBtn.textContent = '+';
+        zoomInBtn.addEventListener('click', () => this.zoomAtCenter(1.35));
+
+        zoomHud.appendChild(zoomOutBtn);
+        zoomHud.appendChild(this.zoomLabel);
+        zoomHud.appendChild(zoomInBtn);
+        imageWrapper.appendChild(zoomHud);
+
+        const controlsHint = document.createElement('div');
+        controlsHint.className = 'level3-controls-hint';
+        controlsHint.textContent = 'Molette : zoomer • Cliquer-glisser : déplacer • Clic : tirer';
+
         gameContainer.appendChild(imageWrapper);
+        gameContainer.appendChild(controlsHint);
         container.appendChild(gameContainer);
 
         waldoImage.addEventListener('dragstart', (e) => e.preventDefault());
@@ -95,9 +216,10 @@ export default {
             this.imageNaturalHeight = waldoImage.naturalHeight;
             this.updateContainerSize(imageWrapper);
             this.positionFerdinand();
+            this.resetCamera();
         };
 
-        if (waldoImage.complete && waldoImage.src) {
+        if (waldoImage.complete && waldoImage.naturalWidth > 0) {
             initGame();
         } else {
             waldoImage.addEventListener('load', initGame);
@@ -112,11 +234,12 @@ export default {
             imageWrapper.appendChild(errorMsg);
         };
 
-        this.setupMouseTracking(imageWrapper);
-        this.setupZoom(imageWrapper);
-        this.setupClick(imageWrapper, waldoImage, ferdinandImg);
-        this.setupEdgePan(imageWrapper);
+        this.setupControls(imageWrapper);
         this.startTimer();
+    },
+
+    getActualScale() {
+        return this.baseScale * this.zoomFactor;
     },
 
     updateContainerSize(wrapper) {
@@ -126,47 +249,59 @@ export default {
 
         if (!this.imageLoaded || !this.waldoImage) return;
 
-        const imgAspect = this.imageNaturalWidth / this.imageNaturalHeight;
-        const wrapperAspect = this.containerWidth / this.containerHeight;
+        // Rendu à la taille native pour conserver 100% de la résolution lors du zoom
+        this.waldoImage.style.width = `${this.imageNaturalWidth}px`;
+        this.waldoImage.style.height = `${this.imageNaturalHeight}px`;
+        this.transformContainer.style.width = `${this.imageNaturalWidth}px`;
+        this.transformContainer.style.height = `${this.imageNaturalHeight}px`;
 
-        let displayWidth, displayHeight;
+        // Échelle de base pour remplir entièrement le cadre sans bordure vide
+        this.baseScale = Math.max(
+            this.containerWidth / this.imageNaturalWidth,
+            this.containerHeight / this.imageNaturalHeight
+        );
+    },
 
-        if (imgAspect > wrapperAspect) {
-            displayHeight = this.containerHeight;
-            displayWidth = this.containerHeight * imgAspect;
-        } else {
-            displayWidth = this.containerWidth;
-            displayHeight = this.containerWidth / imgAspect;
-        }
+    resetCamera() {
+        this.zoomFactor = 1;
+        const actualScale = this.getActualScale();
+        const scaledW = this.imageNaturalWidth * actualScale;
+        const scaledH = this.imageNaturalHeight * actualScale;
 
-        this.waldoImage.style.width = `${displayWidth}px`;
-        this.waldoImage.style.height = `${displayHeight}px`;
+        // Centre l'image au départ
+        this.panX = (this.containerWidth - scaledW) / 2;
+        this.panY = (this.containerHeight - scaledH) / 2;
+        this.clampPan();
+        this.updateTransform();
+    },
 
-        if (this.ferdinandImg) {
-            this.ferdinandImg.style.width = '';
-            this.ferdinandImg.style.height = '';
-        }
+    clampPan() {
+        const actualScale = this.getActualScale();
+        const scaledW = this.imageNaturalWidth * actualScale;
+        const scaledH = this.imageNaturalHeight * actualScale;
+
+        const minX = Math.min(0, this.containerWidth - scaledW);
+        const minY = Math.min(0, this.containerHeight - scaledH);
+
+        this.panX = Math.max(minX, Math.min(0, this.panX));
+        this.panY = Math.max(minY, Math.min(0, this.panY));
     },
 
     positionFerdinand() {
         if (!this.ferdinandImg || !this.imageLoaded) return;
 
-        const transformContainer = this.transformContainer;
-        if (!transformContainer) return;
+        // Taille proportionnelle à l'image native (reste nette en zoomant)
+        const ferdWidth = Math.round(Math.max(24, this.imageNaturalWidth * 0.045));
+        const ferdHeight = Math.round(ferdWidth * 1.25);
 
-        const containerRect = transformContainer.getBoundingClientRect();
-        const containerWidth = containerRect.width;
-        const containerHeight = containerRect.height;
+        const marginX = Math.round(this.imageNaturalWidth * 0.06);
+        const marginY = Math.round(this.imageNaturalHeight * 0.06);
 
-        const ferdWidth = 20;
-        const ferdHeight = 25;
+        const maxX = Math.max(1, this.imageNaturalWidth - ferdWidth - marginX * 2);
+        const maxY = Math.max(1, this.imageNaturalHeight - ferdHeight - marginY * 2);
 
-        const margin = 40;
-        const maxX = containerWidth - ferdWidth - margin;
-        const maxY = containerHeight - ferdHeight - margin;
-
-        const randomX = Math.random() * maxX + margin / 2;
-        const randomY = Math.random() * maxY + margin / 2;
+        const randomX = Math.round(Math.random() * maxX + marginX);
+        const randomY = Math.round(Math.random() * maxY + marginY);
 
         this.ferdinandImg.style.width = `${ferdWidth}px`;
         this.ferdinandImg.style.height = `${ferdHeight}px`;
@@ -182,135 +317,89 @@ export default {
         };
     },
 
-    setupMouseTracking(wrapper) {
-        const handleMove = (e) => {
+    zoomAtPoint(factor, pivotX, pivotY) {
+        if (!this.imageLoaded) return;
+
+        const oldActualScale = this.getActualScale();
+        const nextZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomFactor * factor));
+        if (nextZoom === this.zoomFactor) return;
+
+        const imgX = (pivotX - this.panX) / oldActualScale;
+        const imgY = (pivotY - this.panY) / oldActualScale;
+
+        this.zoomFactor = nextZoom;
+        const newActualScale = this.getActualScale();
+
+        this.panX = pivotX - imgX * newActualScale;
+        this.panY = pivotY - imgY * newActualScale;
+
+        this.clampPan();
+        this.updateTransform();
+    },
+
+    zoomAtCenter(factor) {
+        this.zoomAtPoint(factor, this.containerWidth / 2, this.containerHeight / 2);
+    },
+
+    setupControls(wrapper) {
+        const handleMouseMove = (e) => {
             const rect = wrapper.getBoundingClientRect();
             this.mouseX = e.clientX - rect.left;
             this.mouseY = e.clientY - rect.top;
             this.updateScopePosition();
-        };
 
-        document.addEventListener('mousemove', handleMove);
-
-        this.cleanupMouse = () => {
-            document.removeEventListener('mousemove', handleMove);
-        };
-    },
-
-    updateScopePosition() {
-        if (!this.scopeCursor) return;
-        this.scopeCursor.style.left = `${this.mouseX}px`;
-        this.scopeCursor.style.top = `${this.mouseY}px`;
-    },
-
-    setupZoom(wrapper) {
-        wrapper.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const delta = -e.deltaY * 0.005;
-            const oldScale = this.scale;
-            let newScale = oldScale + delta;
-            newScale = Math.max(1, Math.min(5, newScale));
-
-            if (newScale === oldScale) return;
-
-            const mx = this.mouseX;
-            const my = this.mouseY;
-
-            const imgX = (mx - this.panX) / oldScale;
-            const imgY = (my - this.panY) / oldScale;
-
-            this.scale = newScale;
-            this.panX = mx - imgX * newScale;
-            this.panY = my - imgY * newScale;
-
-            this.updateTransform();
-        }, { passive: false });
-
-        document.addEventListener('keydown', (e) => {
-            const oldScale = this.scale;
-            const cx = this.containerWidth / 2;
-            const cy = this.containerHeight / 2;
-
-            if (e.key === '+' || e.key === '=') {
-                this.scale = Math.min(5, oldScale + 0.3);
-            } else if (e.key === '-') {
-                this.scale = Math.max(1, oldScale - 0.3);
-            } else {
-                return;
-            }
-
-            const imgX = (cx - this.panX) / oldScale;
-            const imgY = (cy - this.panY) / oldScale;
-            this.panX = cx - imgX * this.scale;
-            this.panY = cy - imgY * this.scale;
-
-            this.updateTransform();
-        });
-    },
-
-    setupEdgePan(wrapper) {
-        const handleTick = () => {
-            if (!this.transformContainer || this.containerWidth === 0) {
-                requestAnimationFrame(handleTick);
-                return;
-            }
-
-            const containerWidth = this.containerWidth;
-            const containerHeight = this.containerHeight;
-
-            let dx = 0;
-            let dy = 0;
-
-            if (this.scale > 1.2) {
-                if (this.mouseX < this.edgeZone) {
-                    dx = this.panSpeed * (1 - this.mouseX / this.edgeZone);
-                } else if (this.mouseX > containerWidth - this.edgeZone) {
-                    dx = -this.panSpeed * (1 - (containerWidth - this.mouseX) / this.edgeZone);
+            if (this.isDragging) {
+                const dx = e.clientX - this.dragStartX;
+                const dy = e.clientY - this.dragStartY;
+                if (Math.hypot(dx, dy) > 5) {
+                    this.hasDragged = true;
                 }
-
-                if (this.mouseY < this.edgeZone) {
-                    dy = this.panSpeed * (1 - this.mouseY / this.edgeZone);
-                } else if (this.mouseY > containerHeight - this.edgeZone) {
-                    dy = -this.panSpeed * (1 - (containerHeight - this.mouseY) / this.edgeZone);
-                }
-            }
-
-            if (dx !== 0 || dy !== 0) {
-                this.panX += dx;
-                this.panY += dy;
+                this.panX = this.panStartX + dx;
+                this.panY = this.panStartY + dy;
+                this.clampPan();
                 this.updateTransform();
             }
-
-            requestAnimationFrame(handleTick);
         };
 
-        requestAnimationFrame(handleTick);
-    },
+        const handleMouseDown = (e) => {
+            if (e.button !== 0 || this.isResetting) return;
+            e.preventDefault();
+            this.isDragging = true;
+            this.hasDragged = false;
+            this.dragStartX = e.clientX;
+            this.dragStartY = e.clientY;
+            this.panStartX = this.panX;
+            this.panStartY = this.panY;
+        };
 
-    updateTransform() {
-        if (!this.transformContainer) return;
+        const handleMouseUp = () => {
+            this.isDragging = false;
+        };
 
-        this.transformContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+        const handleWheel = (e) => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+            this.zoomAtPoint(factor, this.mouseX, this.mouseY);
+        };
 
-        const zoomBlur = Math.max(0, (this.scale - 1.5) * 0.15);
-        if (this.waldoImage) {
-            this.waldoImage.style.filter = zoomBlur > 0 ? `blur(${zoomBlur}px)` : 'none';
-        }
-        if (this.ferdinandImg) {
-            this.ferdinandImg.style.filter = zoomBlur > 0 ? `blur(${zoomBlur}px)` : 'none';
-        }
-    },
+        const handleKeyDown = (e) => {
+            if (e.key === '+' || e.key === '=') {
+                this.zoomAtCenter(1.25);
+            } else if (e.key === '-') {
+                this.zoomAtCenter(1 / 1.25);
+            }
+        };
 
-    setupClick(wrapper, waldoImg, ferdinandImg) {
-        wrapper.addEventListener('click', (e) => {
-            if (this.isResetting || !this.ferdinandRect) return;
+        const handleClick = (e) => {
+            if (this.isResetting || !this.ferdinandRect || this.hasDragged) return;
 
-            const wrapperRect = wrapper.getBoundingClientRect();
-            const clickX = e.clientX - wrapperRect.left;
-            const clickY = e.clientY - wrapperRect.top;
+            const rect = wrapper.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const actualScale = this.getActualScale();
 
-            const imgX = (clickX - this.panX) / this.scale;
-            const imgY = (clickY - this.panY) / this.scale;
+            const imgX = (clickX - this.panX) / actualScale;
+            const imgY = (clickY - this.panY) / actualScale;
 
             const ferd = this.ferdinandRect;
             if (
@@ -325,7 +414,40 @@ export default {
             } else {
                 this.resetLevel();
             }
-        });
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('keydown', handleKeyDown);
+        wrapper.addEventListener('mousedown', handleMouseDown);
+        wrapper.addEventListener('wheel', handleWheel, { passive: false });
+        wrapper.addEventListener('click', handleClick);
+
+        this.cleanupControls = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('keydown', handleKeyDown);
+            wrapper.removeEventListener('mousedown', handleMouseDown);
+            wrapper.removeEventListener('wheel', handleWheel);
+            wrapper.removeEventListener('click', handleClick);
+        };
+    },
+
+    updateScopePosition() {
+        if (!this.scopeCursor) return;
+        this.scopeCursor.style.left = `${this.mouseX}px`;
+        this.scopeCursor.style.top = `${this.mouseY}px`;
+    },
+
+    updateTransform() {
+        if (!this.transformContainer) return;
+
+        const actualScale = this.getActualScale();
+        this.transformContainer.style.transform = `translate3d(${this.panX}px, ${this.panY}px, 0) scale(${actualScale})`;
+
+        if (this.zoomLabel) {
+            this.zoomLabel.textContent = `${this.zoomFactor.toFixed(1)}×`;
+        }
     },
 
     startTimer() {
@@ -376,32 +498,25 @@ export default {
         this.stopTimer();
         this.engineAPI.fail("Trop lent ou mauvaise cible ! Un vrai robot !");
 
-        setTimeout(() => {
-            this.scale = 1;
-            this.panX = 0;
-            this.panY = 0;
-            this.updateTransform();
+        this.resetTimeout = setTimeout(() => {
+            if (!this.engineAPI) return;
             this.positionFerdinand();
+            this.resetCamera();
             this.isResetting = false;
             this.startTimer();
         }, 1500);
     },
 
     verify(engineAPI) {
-        if (this.ferdinandRect) {
-            engineAPI.pass();
-        } else {
-            engineAPI.fail("Cible non détectée. Réessayez !");
-        }
+        engineAPI.fail("Tirez directement sur l'archiduc François-Ferdinand dans l'image !");
     },
 
     unmount() {
         this.stopTimer();
-        if (this.cleanupMouse) {
-            this.cleanupMouse();
-        }
-        if (this.helpSection) {
-            this.helpSection.remove();
+        clearTimeout(this.resetTimeout);
+        if (this.cleanupControls) {
+            this.cleanupControls();
+            this.cleanupControls = null;
         }
         this.engineAPI = null;
         this.ferdinandRect = null;

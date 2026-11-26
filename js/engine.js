@@ -273,11 +273,11 @@ class CaptchaEngine {
 
             this.title.textContent = 'Vérification supplémentaire requise';
             box.innerHTML = `
-                <div class="phase-twist-icon">🤨</div>
-                <p class="phase-twist-title">Attendez une seconde...</p>
+                <div class="phase-twist-icon"></div>
+                <p class="phase-twist-title">Détection non concluante</p>
                 <p class="phase-twist-text">
-                    Je ne suis pas encore sûr que vous êtes bien humain.<br>
-                    J'ai préparé des tests que seuls des humains pourraient réussir.
+                    Les informations fournies ne suffisent pas à conclure que vous êtes bien humain.<br>
+                    Chargement de tests que seuls des humains pourraient réussir.
                 </p>
                 <button type="button" class="phase-continue-btn" id="phase2StartBtn">
                     Prouver mon humanité
